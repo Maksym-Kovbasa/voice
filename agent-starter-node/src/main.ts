@@ -203,11 +203,8 @@ export default defineAgent({
       await queuePersist();
     });
 
-    const hasHistory = initialChatCtx.items.length > 0;
     session.generateReply({
-      instructions: hasHistory
-        ? 'Welcome the user back and continue naturally from prior context.'
-        : 'Greet the user in a helpful and friendly manner.',
+      instructions: 'Start the conversation exactly according to your rules.',
     });
 
     let participantTemporarilyDisconnected = false;
