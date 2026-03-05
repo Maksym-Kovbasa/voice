@@ -14,6 +14,10 @@ The starter project includes:
 - [LiveKit Turn Detector](https://docs.livekit.io/agents/build/turns/turn-detector/) for contextually-aware speaker detection, with multilingual support
 - [Background voice cancellation](https://docs.livekit.io/home/cloud/noise-cancellation/)
 - Integrated [metrics and logging](https://docs.livekit.io/agents/build/metrics/)
+- Persistent user memory in Neon Postgres:
+  - conversation history (`conversation_memory` by default)
+  - user preference profile (`user_profile_memory` by default)
+- Agent tools for profile updates, frontend RPC sync, and memory reset
 - A Dockerfile ready for [production deployment](https://docs.livekit.io/agents/ops/deployment/)
 
 This starter app is compatible with any [custom web/mobile frontend](https://docs.livekit.io/agents/start/frontend/) or [SIP-based telephony](https://docs.livekit.io/agents/start/telephony/).
@@ -64,6 +68,14 @@ Sign up for [LiveKit Cloud](https://cloud.livekit.io/) then set up the environme
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
+- `NEON_DATABASE_URL` (or `DATABASE_URL`) for persistent memory storage
+
+Optional memory env vars:
+
+- `NEON_MEMORY_TABLE` (default: `conversation_memory`)
+- `NEON_PROFILE_TABLE` (default: `user_profile_memory`)
+- `MEMORY_MAX_ITEMS` (default: `40`)
+- `MEMORY_FALLBACK_USER_ID` (used only if no stable user identity is present)
 
 You can load the LiveKit environment automatically using the [LiveKit CLI](https://docs.livekit.io/home/cli/cli-setup):
 
@@ -91,6 +103,34 @@ In production, use the `start` command:
 ```console
 pnpm run start
 ```
+
+## Persistent memory, profile, and RPC sync
+
+The agent persists authenticated user context in Neon and reloads it on restart:
+
+- `conversation_memory` table:
+  - key `id` (uses `user:<userId>` when available)
+  - `messages` JSONB with recent chat items
+- `user_profile_memory` table:
+  - key `user_id`
+  - `fields` JSONB for captured preferences (genre, actors, mood, etc.)
+
+Agent tools:
+
+- `update_field(field, value)`:
+  - normalizes and upserts profile fields in Neon
+  - sends frontend RPC (`client.agentFieldUpdate`) with `field_updated`
+- `perform_rpc_to_frontend(action, payloadJson)`:
+  - sends explicit UI updates to the mobile client
+- `clear_user_memory()`:
+  - deletes both user profile and conversation memory rows for the current user
+  - sends frontend RPC with `memory_cleared`
+
+The prompt preload uses a structured, bounded profile block (`saved_preferences_structured`) to keep context stable and avoid prompt bloat:
+
+- max fields: `12`
+- max values per field: `6`
+- max value length: `80` chars (truncated with `...`)
 
 ## Frontend & Telephony
 

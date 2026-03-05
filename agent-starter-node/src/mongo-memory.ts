@@ -7,8 +7,14 @@ type StoredMessage = {
   createdAt: number;
 };
 
+export type StoredUserProfile = {
+  userId: string;
+  fields: Record<string, string[]>;
+};
+
 const NEON_DATABASE_URL = process.env.NEON_DATABASE_URL ?? process.env.DATABASE_URL;
 const NEON_MEMORY_TABLE = process.env.NEON_MEMORY_TABLE ?? 'conversation_memory';
+const NEON_PROFILE_TABLE = process.env.NEON_PROFILE_TABLE ?? 'user_profile_memory';
 const MEMORY_MAX_ITEMS = Number.parseInt(process.env.MEMORY_MAX_ITEMS ?? '40', 10);
 
 let pool: Pool | null = null;
@@ -26,6 +32,7 @@ function sanitizeTableName(input: string): string {
 }
 
 const tableName = sanitizeTableName(NEON_MEMORY_TABLE);
+const profileTableName = sanitizeTableName(NEON_PROFILE_TABLE);
 
 async function disableMemory(): Promise<void> {
   memoryDisabled = true;
@@ -68,6 +75,13 @@ async function getPool(): Promise<Pool | null> {
           room_name TEXT NOT NULL,
           participant_identity TEXT,
           messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `);
+      await pool!.query(`
+        CREATE TABLE IF NOT EXISTS ${profileTableName} (
+          user_id TEXT PRIMARY KEY,
+          fields JSONB NOT NULL DEFAULT '{}'::jsonb,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
       `);
@@ -188,6 +202,131 @@ export async function saveChatMemory({
       console.error('Failed to save Neon memory. Continuing without persistence.', error);
     }
     await disableMemory();
+  }
+}
+
+function sanitizeFieldKey(field: string): string {
+  const normalized = field
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || 'general';
+}
+
+function normalizeFieldValues(value: string): string[] {
+  const parts = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  const source = parts.length > 0 ? parts : [value.trim()];
+  const deduped = new Set<string>();
+  const result: string[] = [];
+  for (const item of source) {
+    if (!item) continue;
+    const key = item.toLowerCase();
+    if (deduped.has(key)) continue;
+    deduped.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+function mergeProfileField(
+  fields: Record<string, string[]>,
+  field: string,
+  value: string,
+): Record<string, string[]> {
+  const key = sanitizeFieldKey(field);
+  const nextValues = normalizeFieldValues(value);
+  if (nextValues.length === 0) return fields;
+
+  const current = fields[key] ?? [];
+  const seen = new Set(current.map((item) => item.toLowerCase()));
+  const merged = [...current];
+  for (const candidate of nextValues) {
+    const lower = candidate.toLowerCase();
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    merged.push(candidate);
+  }
+  return {
+    ...fields,
+    [key]: merged.slice(0, 30),
+  };
+}
+
+export async function loadUserProfile({
+  userId,
+}: {
+  userId: string;
+}): Promise<StoredUserProfile> {
+  try {
+    const db = await getPool();
+    if (!db) {
+      return { userId, fields: {} };
+    }
+    const result = await db.query<{ fields: Record<string, string[]> | null }>(
+      `SELECT fields FROM ${profileTableName} WHERE user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    return {
+      userId,
+      fields: result.rows[0]?.fields ?? {},
+    };
+  } catch (error) {
+    console.error('Failed to load user profile from Neon. Continuing with empty profile.', error);
+    return { userId, fields: {} };
+  }
+}
+
+export async function updateUserProfileField({
+  userId,
+  field,
+  value,
+}: {
+  userId: string;
+  field: string;
+  value: string;
+}): Promise<StoredUserProfile> {
+  const loaded = await loadUserProfile({ userId });
+  const fields = mergeProfileField(loaded.fields, field, value);
+
+  try {
+    const db = await getPool();
+    if (!db) {
+      return { userId, fields };
+    }
+    await db.query(
+      `
+      INSERT INTO ${profileTableName} (user_id, fields, updated_at)
+      VALUES ($1, $2::jsonb, NOW())
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        fields = EXCLUDED.fields,
+        updated_at = NOW()
+      `,
+      [userId, JSON.stringify(fields)],
+    );
+  } catch (error) {
+    console.error('Failed to update user profile in Neon. Continuing with in-memory value.', error);
+  }
+
+  return { userId, fields };
+}
+
+export async function clearUserMemory({
+  userId,
+}: {
+  userId: string;
+}): Promise<void> {
+  try {
+    const db = await getPool();
+    if (!db) return;
+    await db.query(`DELETE FROM ${profileTableName} WHERE user_id = $1`, [userId]);
+    await db.query(`DELETE FROM ${tableName} WHERE id = $1`, [`user:${userId}`]);
+  } catch (error) {
+    console.error('Failed to clear user memory in Neon.', error);
   }
 }
 

@@ -14,7 +14,14 @@ import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import { Agent } from './agent';
-import { buildConversationId, loadChatMemory, saveChatMemory } from './mongo-memory';
+import {
+  buildConversationId,
+  clearUserMemory,
+  loadChatMemory,
+  loadUserProfile,
+  saveChatMemory,
+  updateUserProfileField,
+} from './mongo-memory';
 import { closeMongo } from './mongo-memory';
 
 // Load environment variables from a local file.
@@ -92,10 +99,11 @@ export default defineAgent({
     const roomName = ctx.room.name || 'default-room';
     const participantIdentity = participant.identity;
     const fallbackUserId = process.env.MEMORY_FALLBACK_USER_ID?.trim() || null;
+    const participantAttrs = participant.attributes as Record<string, string> | undefined;
     const stableUserId = extractStableUserId({
       identity: participant.identity,
-      metadata: participant.metadata,
-      attributes: participant.attributes as Record<string, string> | undefined,
+      ...(participant.metadata ? { metadata: participant.metadata } : {}),
+      ...(participantAttrs ? { attributes: participantAttrs } : {}),
     }) ?? fallbackUserId;
     const conversationId = buildConversationId({
       roomName,
@@ -104,6 +112,7 @@ export default defineAgent({
     });
     console.log('Using conversation memory key:', conversationId);
     const initialChatCtx = await loadChatMemory({ conversationId });
+    const initialUserProfile = stableUserId ? await loadUserProfile({ userId: stableUserId }) : { userId: '', fields: {} };
 
     // Set up a voice AI pipeline using OpenAI, Cartesia, Deepgram, and the LiveKit turn detector
     const session = new voice.AgentSession({
@@ -163,6 +172,74 @@ export default defineAgent({
     ctx.addShutdownCallback(logUsage);
 
     let persistQueue: Promise<void> = Promise.resolve();
+    const performRpcToFrontend = async ({
+      action,
+      payload,
+    }: {
+      action: string;
+      payload: Record<string, unknown>;
+    }): Promise<string> => {
+      try {
+        const local = ctx.room.localParticipant;
+        if (!local) {
+          return 'RPC skipped: local participant unavailable.';
+        }
+        await local.performRpc({
+          destinationIdentity: participantIdentity,
+          method: 'client.agentFieldUpdate',
+          payload: JSON.stringify({
+            action,
+            ...payload,
+          }),
+        });
+        return `RPC sent: ${action}`;
+      } catch (error) {
+        console.error('Failed to send RPC to frontend:', error);
+        return `RPC failed: ${String(error)}`;
+      }
+    };
+
+    const updateField = async ({
+      field,
+      value,
+    }: {
+      field: string;
+      value: string;
+    }): Promise<Record<string, string[]>> => {
+      if (!stableUserId) {
+        return {};
+      }
+      const updated = await updateUserProfileField({
+        userId: stableUserId,
+        field,
+        value,
+      });
+      void performRpcToFrontend({
+        action: 'field_updated',
+        payload: {
+          field,
+          value,
+          fields: updated.fields,
+        },
+      });
+      return updated.fields;
+    };
+
+    const clearMemory = async (): Promise<boolean> => {
+      if (!stableUserId) {
+        return false;
+      }
+      await clearUserMemory({ userId: stableUserId });
+      void performRpcToFrontend({
+        action: 'memory_cleared',
+        payload: {
+          userId: stableUserId,
+          fields: {},
+        },
+      });
+      return true;
+    };
+
     const queuePersist = () => {
       persistQueue = persistQueue
         .then(() =>
@@ -181,7 +258,14 @@ export default defineAgent({
 
     // Start the session, which initializes the voice pipeline and warms up the models
     await session.start({
-      agent: new Agent({ chatCtx: initialChatCtx }),
+      agent: new Agent({
+        chatCtx: initialChatCtx,
+        userId: stableUserId,
+        userProfile: initialUserProfile.fields,
+        updateField,
+        clearMemory,
+        performRpcToFrontend,
+      }),
       room: ctx.room,
       inputOptions: {
         // LiveKit Cloud enhanced noise cancellation
@@ -206,6 +290,16 @@ export default defineAgent({
     session.generateReply({
       instructions: 'Start the conversation exactly according to your rules.',
     });
+
+    if (stableUserId) {
+      void performRpcToFrontend({
+        action: 'profile_sync',
+        payload: {
+          userId: stableUserId,
+          fields: initialUserProfile.fields,
+        },
+      });
+    }
 
     let participantTemporarilyDisconnected = false;
     ctx.room.on('participantDisconnected', (p) => {
