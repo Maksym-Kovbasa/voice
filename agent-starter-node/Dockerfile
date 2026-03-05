@@ -66,6 +66,11 @@ USER appuser
 # Set Node.js to production mode
 ENV NODE_ENV=production
 
+# Conversation memory defaults (override at runtime as needed).
+# NEON_DATABASE_URL should be passed via env file or container environment.
+ENV NEON_MEMORY_TABLE=conversation_memory
+ENV MEMORY_MAX_ITEMS=40
+
 # Run the application
 # The "start" command tells the worker to connect to LiveKit and begin waiting for jobs.
 CMD [ "pnpm", "start" ]

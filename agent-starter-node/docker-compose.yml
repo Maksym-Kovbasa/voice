@@ -1,0 +1,11 @@
+services:
+  agent-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.local
+    environment:
+      NEON_MEMORY_TABLE: conversation_memory
+      MEMORY_MAX_ITEMS: 40
+    restart: unless-stopped

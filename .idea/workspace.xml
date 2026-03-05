@@ -4,31 +4,43 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fd24a736-29f6-41b9-847a-03dd90b7ea6b" name="Changes" comment="init" />
+    <list default="true" id="fd24a736-29f6-41b9-847a-03dd90b7ea6b" name="Changes" comment="init">
+      <change afterPath="$PROJECT_DIR$/log.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/Dockerfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/pnpm-lock.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/pnpm-lock.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/src/agent.ts" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/src/agent.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/src/main.ts" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/src/main.ts" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="1161" />
     <option name="fileBasedEmbeddingIndicesEnabled" value="true" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="ROOT_SYNC" value="DONT_SYNC" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "Maksym-Kovbasa"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Maksym-Kovbasa&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/Maksym-Kovbasa/voice.git",
-    "accountId": "32f647a8-c109-4bbc-a390-7f4d72bb9c19"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Maksym-Kovbasa/voice.git&quot;,
+    &quot;accountId&quot;: &quot;32f647a8-c109-4bbc-a390-7f4d72bb9c19&quot;
   }
+}</component>
+  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
+  <component name="KubernetesApiProvider"><![CDATA[{
+  "isMigrated": true
 }]]></component>
   <component name="McpProjectServerCommands">
     <commands />
@@ -47,6 +59,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Docker.agent-starter-node/Dockerfile.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -62,9 +75,29 @@
     "node.js.selected.package.eslint": "(autodetect)",
     "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "pnpm",
+    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\IntelliJ IDEA 2025.3.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RunManager">
+    <configuration default="true" type="docker-deploy" factoryName="dockerfile" temporary="true">
+      <deployment type="dockerfile" />
+      <method v="2" />
+    </configuration>
+    <configuration name="agent-starter-node/Dockerfile" type="docker-deploy" factoryName="dockerfile" temporary="true" server-name="Docker">
+      <deployment type="dockerfile">
+        <settings>
+          <option name="sourceFilePath" value="agent-starter-node/Dockerfile" />
+        </settings>
+      </deployment>
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Docker.agent-starter-node/Dockerfile" />
+      </list>
+    </recent_temporary>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -82,6 +115,8 @@
       <updated>1772637105737</updated>
       <workItem from="1772637107297" duration="897000" />
       <workItem from="1772638347903" duration="1225000" />
+      <workItem from="1772639604026" duration="659000" />
+      <workItem from="1772696696886" duration="12423000" />
     </task>
     <task id="LOCAL-00001" summary="init">
       <option name="closed" value="true" />
@@ -107,7 +142,15 @@
       <option name="project" value="LOCAL" />
       <updated>1772639080723</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="init">
+      <option name="closed" value="true" />
+      <created>1772639671482</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1772639671482</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

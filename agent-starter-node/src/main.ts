@@ -14,17 +14,97 @@ import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import { Agent } from './agent';
+import { buildConversationId, loadChatMemory, saveChatMemory } from './mongo-memory';
+import { closeMongo } from './mongo-memory';
 
 // Load environment variables from a local file.
 // Make sure to set LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET
 // when running locally or self-hosting your agent server.
 dotenv.config({ path: '.env.local' });
 
+process.on('SIGINT', async () => {
+  await closeMongo();
+  process.exit(0);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  // LiveKit may emit a disconnect-time rejection with `undefined` reason.
+  // Ignore this specific case to avoid noisy false-positive error logs.
+  if (reason === undefined) {
+    return;
+  }
+
+  const trace = new Error('Unhandled rejection trace');
+  console.error('UNHANDLED_REJECTION:', {
+    reason,
+    promise,
+    trace: trace.stack,
+  });
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('UNCAUGHT_EXCEPTION:', error);
+});
+
+function extractStableUserId(participant: {
+  identity?: string;
+  metadata?: string;
+  attributes?: Record<string, string>;
+}): string | null {
+  const keys = ['user_id', 'userId', 'uid', 'id', 'sub'];
+  const attrs = participant.attributes ?? {};
+
+  for (const key of keys) {
+    const value = attrs[key];
+    if (value && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  const metadata = participant.metadata?.trim();
+  if (!metadata) {
+    return participant.identity?.trim() ?? null;
+  }
+
+  try {
+    const parsed = JSON.parse(metadata) as Record<string, unknown>;
+    for (const key of keys) {
+      const value = parsed[key];
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+  } catch {
+    // Metadata is plain text, not JSON. Use directly.
+    return metadata;
+  }
+
+  return null;
+}
+
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
     proc.userData.vad = await silero.VAD.load();
   },
   entry: async (ctx: JobContext) => {
+    await ctx.connect();
+    const participant = await ctx.waitForParticipant();
+    const roomName = ctx.room.name || 'default-room';
+    const participantIdentity = participant.identity;
+    const fallbackUserId = process.env.MEMORY_FALLBACK_USER_ID?.trim() || null;
+    const stableUserId = extractStableUserId({
+      identity: participant.identity,
+      metadata: participant.metadata,
+      attributes: participant.attributes as Record<string, string> | undefined,
+    }) ?? fallbackUserId;
+    const conversationId = buildConversationId({
+      roomName,
+      participantIdentity,
+      stableUserId,
+    });
+    console.log('Using conversation memory key:', conversationId);
+    const initialChatCtx = await loadChatMemory({ conversationId });
+
     // Set up a voice AI pipeline using OpenAI, Cartesia, Deepgram, and the LiveKit turn detector
     const session = new voice.AgentSession({
       // Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
@@ -82,24 +162,67 @@ export default defineAgent({
 
     ctx.addShutdownCallback(logUsage);
 
+    let persistQueue: Promise<void> = Promise.resolve();
+    const queuePersist = () => {
+      persistQueue = persistQueue
+        .then(() =>
+          saveChatMemory({
+            conversationId,
+            roomName,
+            participantIdentity,
+            chatCtx: session.history,
+          }),
+        )
+        .catch((error) => {
+          console.error('Failed to persist conversation memory:', error);
+        });
+      return persistQueue;
+    };
+
     // Start the session, which initializes the voice pipeline and warms up the models
     await session.start({
-      agent: new Agent(),
+      agent: new Agent({ chatCtx: initialChatCtx }),
       room: ctx.room,
       inputOptions: {
         // LiveKit Cloud enhanced noise cancellation
         // - If self-hosting, omit this parameter
         // - For telephony applications, use `BackgroundVoiceCancellationTelephony` for best results
         noiseCancellation: BackgroundVoiceCancellation(),
+        // Keep session alive when client temporarily disconnects, so reconnect is seamless.
+        closeOnDisconnect: false,
       },
     });
 
-    // Join the room and connect to the user
-    await ctx.connect();
+    session.on(voice.AgentSessionEventTypes.ConversationItemAdded, () => {
+      void queuePersist();
+    });
+    session.on(voice.AgentSessionEventTypes.FunctionToolsExecuted, () => {
+      void queuePersist();
+    });
+    ctx.addShutdownCallback(async () => {
+      await queuePersist();
+    });
 
-    // Greet the user on joining
+    const hasHistory = initialChatCtx.items.length > 0;
     session.generateReply({
-      instructions: 'Greet the user in a helpful and friendly manner.',
+      instructions: hasHistory
+        ? 'Welcome the user back and continue naturally from prior context.'
+        : 'Greet the user in a helpful and friendly manner.',
+    });
+
+    let participantTemporarilyDisconnected = false;
+    ctx.room.on('participantDisconnected', (p) => {
+      if (p.identity === participantIdentity) {
+        participantTemporarilyDisconnected = true;
+      }
+    });
+    ctx.room.on('participantConnected', (p) => {
+      if (p.identity === participantIdentity && participantTemporarilyDisconnected) {
+        participantTemporarilyDisconnected = false;
+        session.generateReply({
+          instructions: 'Welcome the user back briefly and continue the conversation naturally.',
+        });
+      }
     });
   },
 });
