@@ -214,6 +214,20 @@ function sanitizeFieldKey(field: string): string {
   return normalized || 'general';
 }
 
+function normalizeRecommendedLinkValue(value: string): string {
+  const cleaned = value.trim();
+  if (!cleaned) return cleaned;
+  if (cleaned.includes('|||')) return cleaned;
+  const match = /^(.*?)(?:,|\-|—)?\s*link\s+(.+)$/i.exec(cleaned);
+  if (match) {
+    const rawTitle = (match[1] ?? '').trim();
+    const url = (match[2] ?? '').trim();
+    if (!url) return cleaned;
+    const normalizedTitle = rawTitle.replace(/^(movie|show|track|album)\s+/i, '').trim();
+    return normalizedTitle ? `${normalizedTitle} ||| ${url}` : url;
+  }
+  return cleaned;
+}
 function normalizeFieldValues(value: string): string[] {
   const parts = value
     .split(',')
@@ -238,7 +252,7 @@ function mergeProfileField(
   value: string,
 ): Record<string, string[]> {
   const key = sanitizeFieldKey(field);
-  const nextValues = normalizeFieldValues(value);
+  const nextValues = field === 'recommended_links' ? normalizeFieldValues(normalizeRecommendedLinkValue(value)) : normalizeFieldValues(value);
   if (nextValues.length === 0) return fields;
 
   const current = fields[key] ?? [];
@@ -256,6 +270,13 @@ function mergeProfileField(
   };
 }
 
+function extractStoredLinkValue(value: string): string {
+  const cleaned = value.trim();
+  if (!cleaned.includes('|||')) return cleaned;
+  const parts = cleaned.split('|||');
+  if (parts.length < 2) return cleaned;
+  return parts.slice(1).join('|||').trim();
+}
 function buildRemovalCandidates(value: string): string[] {
   const cleaned = value.trim();
   if (!cleaned) return [];
@@ -285,7 +306,9 @@ export function removeProfileFieldValue(
   if (candidates.length === 0) return fields;
 
   const filtered = current.filter((item) => {
-    const normalized = item.trim().toLowerCase();
+    const storedValue = item.trim();
+    const storedLink = extractStoredLinkValue(storedValue);
+    const normalized = storedValue.toLowerCase();
     if (candidates.includes(normalized)) return false;
     const withoutScheme = normalized.replace(/^(http|https):\/\//i, '');
     return !candidates.includes(withoutScheme);
@@ -339,6 +362,24 @@ export async function removeUserProfileFieldValue({
   return { userId, fields };
 }
 
+function enrichRecommendedLinkValue(
+  fields: Record<string, string[]>,
+  value: string,
+): string {
+  const normalized = normalizeRecommendedLinkValue(value);
+  if (normalized.includes('|||')) {
+    return normalized;
+  }
+  const items = fields.recommended_items ?? [];
+  if (items.length === 0) {
+    return normalized;
+  }
+  const title = items[items.length - 1]?.trim();
+  if (!title) {
+    return normalized;
+  }
+  return `${title} ||| ${normalized}`;
+}
 export async function loadUserProfile({
   userId,
 }: {
@@ -373,7 +414,8 @@ export async function updateUserProfileField({
   value: string;
 }): Promise<StoredUserProfile> {
   const loaded = await loadUserProfile({ userId });
-  const fields = mergeProfileField(loaded.fields, field, value);
+  const nextValue = field === 'recommended_links' ? enrichRecommendedLinkValue(loaded.fields, value) : value;
+  const fields = mergeProfileField(loaded.fields, field, nextValue);
 
   try {
     const db = await getPool();
@@ -416,4 +458,7 @@ export async function clearUserMemory({
 export async function closeMongo(): Promise<void> {
   await disableMemory();
 }
+
+
+
 

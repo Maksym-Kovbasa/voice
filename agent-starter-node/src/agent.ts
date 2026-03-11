@@ -172,3 +172,4 @@ ${structuredProfile}.`,
     super(options);
   }
 }
+
