@@ -256,6 +256,89 @@ function mergeProfileField(
   };
 }
 
+function buildRemovalCandidates(value: string): string[] {
+  const cleaned = value.trim();
+  if (!cleaned) return [];
+  const candidates = new Set<string>();
+  candidates.add(cleaned);
+  const lower = cleaned.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    const withoutScheme = cleaned.replace(/^(http|https):\/\//i, '');
+    candidates.add(withoutScheme);
+  } else {
+    candidates.add(`https://${cleaned}`);
+    candidates.add(cleaned.replace(/^\/\//, ''));
+  }
+  return Array.from(candidates).filter((item) => item.trim().length > 0);
+}
+
+export function removeProfileFieldValue(
+  fields: Record<string, string[]>,
+  field: string,
+  value: string,
+): Record<string, string[]> {
+  const key = sanitizeFieldKey(field);
+  const current = fields[key] ?? [];
+  if (current.length === 0) return fields;
+
+  const candidates = buildRemovalCandidates(value).map((item) => item.toLowerCase());
+  if (candidates.length === 0) return fields;
+
+  const filtered = current.filter((item) => {
+    const normalized = item.trim().toLowerCase();
+    if (candidates.includes(normalized)) return false;
+    const withoutScheme = normalized.replace(/^(http|https):\/\//i, '');
+    return !candidates.includes(withoutScheme);
+  });
+
+  if (filtered.length === current.length) {
+    return fields;
+  }
+
+  const next = { ...fields };
+  if (filtered.length === 0) {
+    delete next[key];
+  } else {
+    next[key] = filtered;
+  }
+  return next;
+}
+
+export async function removeUserProfileFieldValue({
+  userId,
+  field,
+  value,
+}: {
+  userId: string;
+  field: string;
+  value: string;
+}): Promise<StoredUserProfile> {
+  const loaded = await loadUserProfile({ userId });
+  const fields = removeProfileFieldValue(loaded.fields, field, value);
+
+  try {
+    const db = await getPool();
+    if (!db) {
+      return { userId, fields };
+    }
+    await db.query(
+      `
+      INSERT INTO ${profileTableName} (user_id, fields, updated_at)
+      VALUES ($1, $2::jsonb, NOW())
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        fields = EXCLUDED.fields,
+        updated_at = NOW()
+      `,
+      [userId, JSON.stringify(fields)],
+    );
+  } catch (error) {
+    console.error('Failed to remove user profile field in Neon. Continuing with in-memory value.', error);
+  }
+
+  return { userId, fields };
+}
+
 export async function loadUserProfile({
   userId,
 }: {
@@ -333,3 +416,4 @@ export async function clearUserMemory({
 export async function closeMongo(): Promise<void> {
   await disableMemory();
 }
+

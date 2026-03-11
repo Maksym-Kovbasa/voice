@@ -20,6 +20,7 @@ import {
   loadChatMemory,
   loadUserProfile,
   saveChatMemory,
+  removeUserProfileFieldValue,
   updateUserProfileField,
 } from './mongo-memory';
 import { closeMongo } from './mongo-memory';
@@ -88,6 +89,13 @@ function extractStableUserId(participant: {
 
   return null;
 }
+
+type RpcInvocationData = {
+  requestId: string;
+  callerIdentity: string;
+  payload: string;
+  responseTimeoutMs: number;
+};
 
 export default defineAgent({
   prewarm: async (proc: JobProcess) => {
@@ -199,7 +207,30 @@ export default defineAgent({
       }
     };
 
-    const updateField = async ({
+    
+    const handleRequestProfileSync = async (data: RpcInvocationData): Promise<string> => {
+      if (!stableUserId) {
+        return 'no_user';
+      }
+      if (data.callerIdentity !== participantIdentity) {
+        return 'unauthorized';
+      }
+      const latest = await loadUserProfile({ userId: stableUserId });
+      void performRpcToFrontend({
+        action: 'profile_sync',
+        payload: {
+          userId: stableUserId,
+          fields: latest.fields,
+        },
+      });
+      return 'ok';
+    };
+
+    ctx.room.localParticipant?.registerRpcMethod('client.requestProfileSync', handleRequestProfileSync);
+    ctx.addShutdownCallback(async () => {
+      ctx.room.localParticipant?.unregisterRpcMethod('client.requestProfileSync');
+    });
+const updateField = async ({
       field,
       value,
     }: {
@@ -224,6 +255,50 @@ export default defineAgent({
       });
       return updated.fields;
     };
+
+    
+    const handleRemoveRecommendedLink = async (data: RpcInvocationData): Promise<string> => {
+      if (!stableUserId) {
+        return 'no_user';
+      }
+      if (data.callerIdentity !== participantIdentity) {
+        return 'unauthorized';
+      }
+      let url = '';
+      try {
+        const parsed = JSON.parse(data.payload) as { url?: string } | string;
+        if (typeof parsed === 'string') {
+          url = parsed;
+        } else {
+          url = parsed.url ?? '';
+        }
+      } catch {
+        url = data.payload;
+      }
+      url = url.trim();
+      if (!url) {
+        return 'invalid_payload';
+      }
+      const updated = await removeUserProfileFieldValue({
+        userId: stableUserId,
+        field: 'recommended_links',
+        value: url,
+      });
+      void performRpcToFrontend({
+        action: 'field_updated',
+        payload: {
+          field: 'recommended_links',
+          value: url,
+          fields: updated.fields,
+        },
+      });
+      return 'ok';
+    };
+
+    ctx.room.localParticipant?.registerRpcMethod('client.removeRecommendedLink', handleRemoveRecommendedLink);
+    ctx.addShutdownCallback(async () => {
+      ctx.room.localParticipant?.unregisterRpcMethod('client.removeRecommendedLink');
+    });
 
     const clearMemory = async (): Promise<boolean> => {
       if (!stableUserId) {
@@ -325,3 +400,6 @@ cli.runApp(
     agentName: 'my-agent',
   }),
 );
+
+
+
