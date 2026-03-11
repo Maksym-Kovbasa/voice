@@ -309,9 +309,16 @@ export function removeProfileFieldValue(
     const storedValue = item.trim();
     const storedLink = extractStoredLinkValue(storedValue);
     const normalized = storedValue.toLowerCase();
+    const normalizedLink = storedLink.trim().toLowerCase();
     if (candidates.includes(normalized)) return false;
     const withoutScheme = normalized.replace(/^(http|https):\/\//i, '');
-    return !candidates.includes(withoutScheme);
+    if (candidates.includes(withoutScheme)) return false;
+    if (normalizedLink.length > 0) {
+      if (candidates.includes(normalizedLink)) return false;
+      const linkWithoutScheme = normalizedLink.replace(/^(http|https):\/\//i, '');
+      if (candidates.includes(linkWithoutScheme)) return false;
+    }
+    return true;
   });
 
   if (filtered.length === current.length) {
@@ -458,6 +465,7 @@ export async function clearUserMemory({
 export async function closeMongo(): Promise<void> {
   await disableMemory();
 }
+
 
 
 
