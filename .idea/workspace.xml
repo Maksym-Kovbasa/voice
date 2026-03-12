@@ -4,8 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fd24a736-29f6-41b9-847a-03dd90b7ea6b" name="Changes" comment="Update">
+    <list default="true" id="fd24a736-29f6-41b9-847a-03dd90b7ea6b" name="Changes" comment="Update delete with header">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/src/agent.ts" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/src/agent.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/src/main.ts" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/src/main.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-starter-node/src/mongo-memory.ts" beforeDir="false" afterPath="$PROJECT_DIR$/agent-starter-node/src/mongo-memory.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -128,6 +131,8 @@
       <workItem from="1772962802738" duration="29000" />
       <workItem from="1773154998773" duration="6000" />
       <workItem from="1773227220665" duration="18347000" />
+      <workItem from="1773260730022" duration="782000" />
+      <workItem from="1773297721852" duration="2845000" />
     </task>
     <task id="LOCAL-00001" summary="init">
       <option name="closed" value="true" />
@@ -233,7 +238,15 @@
       <option name="project" value="LOCAL" />
       <updated>1773235702401</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="Update delete with header">
+      <option name="closed" value="true" />
+      <created>1773260946857</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1773260946858</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -243,7 +256,8 @@
     <MESSAGE value="init" />
     <MESSAGE value="Added database usage" />
     <MESSAGE value="Update" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update" />
+    <MESSAGE value="Update delete with header" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update delete with header" />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

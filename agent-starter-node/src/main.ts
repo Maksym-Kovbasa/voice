@@ -230,26 +230,35 @@ export default defineAgent({
     ctx.addShutdownCallback(async () => {
       ctx.room.localParticipant?.unregisterRpcMethod('client.requestProfileSync');
     });
-const updateField = async ({
+    const updateField = async ({
       field,
       value,
     }: {
       field: string;
-      value: string;
+      value: unknown;
     }): Promise<Record<string, string[]>> => {
       if (!stableUserId) {
         return {};
       }
-      const updated = await updateUserProfileField({
-        userId: stableUserId,
-        field,
-        value,
-      });
+      const normalizedValue = normalizeIncomingFieldValue(field, value);
+      if (!normalizedValue || (Array.isArray(normalizedValue) && normalizedValue.length == 0)) {
+        return {};
+      }
+
+      let updated = { userId: stableUserId, fields: {} as Record<string, string[]> };
+      const valuesToStore = Array.isArray(normalizedValue) ? normalizedValue : [normalizedValue];
+      for (const nextValue of valuesToStore) {
+        updated = await updateUserProfileField({
+          userId: stableUserId,
+          field,
+          value: nextValue,
+        });
+      }
       void performRpcToFrontend({
         action: 'field_updated',
         payload: {
           field,
-          value,
+          value: Array.isArray(normalizedValue) ? normalizedValue[normalizedValue.length - 1] : normalizedValue,
           fields: updated.fields,
         },
       });
@@ -392,6 +401,35 @@ const updateField = async ({
     });
   },
 });
+
+function normalizeIncomingFieldValue(field: string, value: unknown): string | string[] {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (field === 'recommended_links' && value && typeof value === 'object') {
+    if (Array.isArray(value)) {
+      const formatted = value
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return '';
+          const payload = entry as { title?: unknown; url?: unknown };
+          const title = typeof payload.title === 'string' ? payload.title.trim() : '';
+          const url = typeof payload.url === 'string' ? payload.url.trim() : '';
+          if (!title && !url) return '';
+          if (title && url) return `${title} ||| ${url}`;
+          return url || title;
+        })
+        .filter((item) => item.length > 0);
+      return formatted;
+    }
+    const payload = value as { title?: unknown; url?: unknown };
+    const title = typeof payload.title === 'string' ? payload.title.trim() : '';
+    const url = typeof payload.url === 'string' ? payload.url.trim() : '';
+    if (!title && !url) return '';
+    if (title && url) return `${title} ||| ${url}`;
+    return url || title;
+  }
+  return '';
+}
 
 // Run the agent server
 cli.runApp(

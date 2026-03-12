@@ -421,7 +421,7 @@ export async function updateUserProfileField({
   value: string;
 }): Promise<StoredUserProfile> {
   const loaded = await loadUserProfile({ userId });
-  const nextValue = field === 'recommended_links' ? enrichRecommendedLinkValue(loaded.fields, value) : value;
+  const nextValue = field === 'recommended_links' ? normalizeRecommendedLinkValue(value) : value;
   const fields = mergeProfileField(loaded.fields, field, nextValue);
 
   try {
@@ -465,6 +465,7 @@ export async function clearUserMemory({
 export async function closeMongo(): Promise<void> {
   await disableMemory();
 }
+
 
 
 
