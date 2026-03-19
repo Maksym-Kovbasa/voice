@@ -1,0 +1,16 @@
+# JetBrains IDEs (IntelliJ IDEA, WebStorm, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Node.js
+agent-starter-node/node_modules/
+agent-starter-node/npm-debug.log*
+agent-starter-node/yarn-debug.log*
+agent-starter-node/yarn-error.log*
+agent-starter-node/.pnpm-debug.log*
+
+# Operating System
+.DS_Store
+Thumbs.db
